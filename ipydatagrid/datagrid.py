@@ -64,7 +64,7 @@ class SelectionIterator(Iterator):
     def _cell_in_previous_selected_rects(self, cell):
         return any(
             self._cell_in_rect(cell, self._selections[i])
-            for i in range(0, self._rect_index)
+            for i in range(self._rect_index)
         )
 
     @staticmethod
@@ -421,10 +421,6 @@ class DataGrid(DOMWidget):
     def generate_data_object(dataframe, guid_key="ipydguuid", index_name="key"):
         dataframe[guid_key] = pd.RangeIndex(0, dataframe.shape[0])
 
-        # Renaming default index name from 'index' to 'key' on
-        # single index DataFrames. This allows users to use
-        # 'index' as a column name. If 'key' exists, we add _x
-        # suffix to id, where { x | 0 <= x < inf }
         if not isinstance(dataframe.index, pd.MultiIndex):
             if index_name in dataframe.columns:
                 index = 0
@@ -443,13 +439,13 @@ class DataGrid(DOMWidget):
         # Check for multiple primary keys
         key = reset_index_dataframe.columns[: dataframe.index.nlevels].tolist()
 
-        num_index_levels = len(key) if isinstance(key, list) else 1
-
         # Check for nested columns in schema, if so, we need to update the
         # schema to represent the actual column name values
         if isinstance(schema["fields"][-1]["name"], tuple):
             num_column_levels = len(dataframe.columns.levels)
             primary_key = key.copy()
+
+            num_index_levels = len(key) if isinstance(key, list) else 1
 
             for i in range(num_index_levels):
                 new_name = [""] * num_column_levels
@@ -498,12 +494,7 @@ class DataGrid(DOMWidget):
             return self._index_name
 
         # Dataframe with names index used by default
-        if dataframe.index.name is not None:
-            return dataframe.index.name
-
-        # If no index_name param, nor named-index DataFrame
-        # have been passed, revert to default "key"
-        return "key"
+        return dataframe.index.name if dataframe.index.name is not None else "key"
 
     def get_cell_value(self, column_name, primary_key_value):
         """Gets the value for a single or multiple cells by column name and index name.
@@ -772,12 +763,11 @@ class DataGrid(DOMWidget):
             if "primaryKey" not in data["schema"]
             else data["schema"]["primaryKey"]
         )
-        col_headers = [
+        return [
             field["name"]
             for field in data["schema"]["fields"]
             if field["name"] not in primary_keys
         ]
-        return col_headers
 
     def _column_name_to_index(self, column_name):
         if "schema" not in self._data or "fields" not in self._data["schema"]:
@@ -798,17 +788,14 @@ class DataGrid(DOMWidget):
                 "as the primary key."
             )
 
-        row_indices = [
+        return [
             at
             for at, row in enumerate(self._data["data"])
             if all(row[key[j]] == value[j] for j in range(len(key)))
         ]
-        return row_indices
 
     @staticmethod
     def _get_cell_value_by_numerical_index(data, column_index, row_index):
         """Gets the value for a single cell by column index and row index."""
         column = DataGrid._column_index_to_name(data, column_index)
-        if column is None:
-            return None
-        return data["data"][row_index][column]
+        return None if column is None else data["data"][row_index][column]
